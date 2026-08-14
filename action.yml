@@ -85,7 +85,9 @@ runs:
 
     - name: Point Zig global cache at the cached directory
       shell: bash
-      run: echo "ZIG_GLOBAL_CACHE_DIR=${{ runner.temp }}/setup-zig-cache" >> "$GITHUB_ENV"
+      run: |
+        mkdir -p "${{ runner.temp }}/setup-zig-cache"
+        echo "ZIG_GLOBAL_CACHE_DIR=${{ runner.temp }}/setup-zig-cache" >> "$GITHUB_ENV"
 
     - name: Save Zig global cache
       if: always() && inputs.use-cache == 'true' && steps.restore-global-cache.outputs.cache-hit != 'true'
