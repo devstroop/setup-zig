@@ -58,7 +58,16 @@ jobs:
 
       - name: Build and run hello (latest)
         working-directory: .fixtures/hello
-        run: zig build run --summary all
+        shell: bash
+        run: |
+          # zig 0.16 aarch64-windows host binaries are broken (bootstrap
+          # poison, crashes with no output — ziglang/zig#31865). The install
+          # is fine (version assert above passed); skip only the compile.
+          if [ "$RUNNER_OS" = "Windows" ] && [ "$RUNNER_ARCH" = "ARM64" ] && zig version | grep -q '^0\.16\.'; then
+            echo "skipping hello build: zig $(zig version) aarch64-windows host is broken upstream"
+            exit 0
+          fi
+          zig build run --summary all
 
       - name: Setup Zig (master)
         uses: ./
