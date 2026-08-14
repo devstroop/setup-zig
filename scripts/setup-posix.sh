@@ -28,6 +28,7 @@ platform_key() {
     case "${RUNNER_OS:-$(uname -s)}" in
         Linux) os="linux" ;;
         macOS|Darwin) os="macos" ;;
+        Windows) os="windows" ;;
         *) echo "setup-zig: unsupported OS: ${RUNNER_OS:-$(uname -s)}" >&2; exit 1 ;;
     esac
     case "${RUNNER_ARCH:-$(uname -m)}" in
