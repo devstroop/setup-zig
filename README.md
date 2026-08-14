@@ -1,4 +1,4 @@
-# setup-zig
+# Setup Zig
 
 Install the [Zig](https://ziglang.org) compiler in GitHub Actions, and cache the
 Zig build cache across runs. Version-agnostic: works with any Zig project and any
