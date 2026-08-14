@@ -1,0 +1,13 @@
+# Zig build artifacts
+.zig-cache/
+zig-out/
+
+# Downloads
+*.tar.xz
+*.zip
+*.tar.gz
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/

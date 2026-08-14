@@ -1,0 +1,96 @@
+name: 'Setup Zig'
+description: 'Install the Zig compiler and cache the Zig build cache. Version-agnostic: exact versions, "latest", or "master" (nightly). Composite action — no Node runtime.'
+author: 'devstroop'
+
+branding:
+  icon: 'cpu'
+  color: 'orange'
+
+inputs:
+  version:
+    description: >
+      Zig version to install: an exact release (e.g. "0.15.2"), "latest"
+      (newest release, default), or "master" (current nightly build).
+    default: 'latest'
+  use-cache:
+    description: >
+      Whether to cache the downloaded toolchain and the Zig global cache
+      directory across workflow runs.
+    default: 'true'
+  cache-key:
+    description: >
+      Additional component appended to the global-cache key. When using a
+      matrix, include matrix variables so each cell gets its own cache.
+    default: ''
+
+outputs:
+  zig-version:
+    description: 'Resolved Zig version that was installed (e.g. "0.15.2" or a nightly build string).'
+    value: ${{ steps.resolve.outputs.zig-version }}
+  cache-hit:
+    description: '"true" when the toolchain was restored from cache.'
+    value: ${{ steps.restore-toolchain.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Resolve version and platform
+      id: resolve
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: bash "${{ github.action_path }}/scripts/setup-posix.sh" resolve
+
+    - name: Restore toolchain from cache
+      id: restore-toolchain
+      if: inputs.use-cache == 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.tool_cache }}/setup-zig
+        key: setup-zig-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.zig-version }}
+
+    - name: Install Zig (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        DOWNLOAD_URL: ${{ steps.resolve.outputs.url }}
+        EXPECTED_SHA256: ${{ steps.resolve.outputs.shasum }}
+      run: bash "${{ github.action_path }}/scripts/setup-posix.sh" install
+
+    - name: Install Zig (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        DOWNLOAD_URL: ${{ steps.resolve.outputs.url }}
+        EXPECTED_SHA256: ${{ steps.resolve.outputs.shasum }}
+      run: pwsh -NoProfile -NonInteractive -File "${{ github.action_path }}/scripts/setup-windows.ps1"
+
+    - name: Save toolchain to cache
+      if: always() && inputs.use-cache == 'true' && steps.restore-toolchain.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.tool_cache }}/setup-zig
+        key: setup-zig-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.zig-version }}
+
+    - name: Restore Zig global cache
+      id: restore-global-cache
+      if: inputs.use-cache == 'true'
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}/setup-zig-cache
+        key: setup-zig-global-cache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-key }}
+        restore-keys: |
+          setup-zig-global-cache-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Point Zig global cache at the cached directory
+      shell: bash
+      run: echo "ZIG_GLOBAL_CACHE_DIR=${{ runner.temp }}/setup-zig-cache" >> "$GITHUB_ENV"
+
+    - name: Save Zig global cache
+      if: always() && inputs.use-cache == 'true' && steps.restore-global-cache.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}/setup-zig-cache
+        key: setup-zig-global-cache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.cache-key }}

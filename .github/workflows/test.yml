@@ -1,0 +1,77 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: ${{ matrix.os }} / ${{ matrix.mode }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15,       os: macOS (aarch64) }
+          - { runner: macos-15-intel, os: macOS (x86_64) }
+          - { runner: ubuntu-latest,  os: Linux (x86_64) }
+          - { runner: ubuntu-24.04-arm, os: Linux (arm64) }
+          - { runner: windows-latest, os: Windows (x64) }
+          - { runner: windows-11-arm, os: Windows (arm64) }
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Zig (pinned)
+        id: pinned
+        uses: ./
+        with:
+          version: 0.15.2
+
+      - name: Assert pinned version
+        shell: bash
+        run: |
+          ACTUAL="$(zig version)"
+          echo "zig version: $ACTUAL (expected ${{ steps.pinned.outputs.zig-version }})"
+          echo "$ACTUAL" | grep -q '^0\.15\.2' || { echo "version mismatch"; exit 1; }
+
+      - name: Build and run hello (pinned)
+        working-directory: .fixtures/hello
+        run: zig build run --summary all
+
+      - name: Setup Zig (latest)
+        uses: ./
+        with:
+          version: latest
+          cache-key: latest-${{ matrix.os }}
+
+      - name: Assert latest version
+        shell: bash
+        run: |
+          echo "zig version: $(zig version)"
+          test -n "$(zig version)"
+
+      - name: Build and run hello (latest)
+        working-directory: .fixtures/hello
+        run: zig build run --summary all
+
+      - name: Setup Zig (master)
+        uses: ./
+        with:
+          version: master
+          cache-key: master-${{ matrix.os }}
+
+      - name: Assert master version
+        shell: bash
+        run: |
+          echo "zig version: $(zig version)"
+          test -n "$(zig version)"
+
+      - name: Build and run hello (master)
+        working-directory: .fixtures/hello
+        run: zig build run --summary all
