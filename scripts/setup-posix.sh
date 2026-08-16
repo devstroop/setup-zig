@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# setup-posix.sh — resolve and install the Zig compiler (Linux/macOS + resolve for Windows).
+# setup-posix.sh — resolve, validate and install the Zig compiler (Linux/macOS + resolve for Windows).
 #
 # Usage:
 #   setup-posix.sh resolve   # env: INPUT_VERSION
 #                            # emits zig-version, url, shasum, platform via $GITHUB_OUTPUT
+#   setup-posix.sh validate  # env: RUNNER_TOOL_CACHE
+#                            # checks a cache-restored toolchain works; emits valid via $GITHUB_OUTPUT
 #   setup-posix.sh install   # env: DOWNLOAD_URL, EXPECTED_SHA256
 #                            # extracts to $RUNNER_TOOL_CACHE/setup-zig and prepends bin to $GITHUB_PATH
 #
@@ -129,6 +131,37 @@ verify_sha256() { # file expected
     fi
 }
 
+# validate — check a toolchain restored from cache actually works before
+# trusting it. A cache restore can fail partway (e.g. truncated download on
+# macOS), leaving a partial or corrupt install behind; in that case emit
+# valid=false so the install step falls back to a fresh download.
+validate() {
+    local tool_cache="${RUNNER_TOOL_CACHE:?RUNNER_TOOL_CACHE is required}"
+    local installed="$tool_cache/setup-zig/zig"
+    local bin_dir zig_bin
+    if [ -x "$installed/zig" ]; then
+        bin_dir="$installed"; zig_bin="$installed/zig"
+    elif [ -x "$installed/zig.exe" ]; then
+        bin_dir="$installed"; zig_bin="$installed/zig.exe"
+    elif [ -x "$installed/bin/zig" ]; then
+        bin_dir="$installed/bin"; zig_bin="$installed/bin/zig"
+    elif [ -x "$installed/bin/zig.exe" ]; then
+        bin_dir="$installed/bin"; zig_bin="$installed/bin/zig.exe"
+    else
+        echo "setup-zig: restored toolchain missing zig binary at $installed; will reinstall" >&2
+        emit "valid" "false"
+        return 0
+    fi
+    if ! "$zig_bin" version >/dev/null 2>&1; then
+        echo "setup-zig: restored toolchain failed 'zig version'; will reinstall" >&2
+        emit "valid" "false"
+        return 0
+    fi
+    echo "setup-zig: restored toolchain OK ($("$zig_bin" version))"
+    echo "$bin_dir" >> "$GITHUB_PATH"
+    emit "valid" "true"
+}
+
 install() {
     local tool_cache="${RUNNER_TOOL_CACHE:?RUNNER_TOOL_CACHE is required}"
     # Global var: the EXIT trap must reference it after the function's
@@ -190,5 +223,6 @@ mode="${1:-}"
 case "$mode" in
     resolve) resolve ;;
     install) install ;;
-    *) echo "usage: $0 <resolve|install>" >&2; exit 2 ;;
+    validate) validate ;;
+    *) echo "usage: $0 <resolve|install|validate>" >&2; exit 2 ;;
 esac

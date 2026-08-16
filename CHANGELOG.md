@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file, following
 
 ## [Unreleased]
 
+### Fixed
+
+- Toolchain and global cache restores are now non-fatal (`continue-on-error`):
+  a truncated or corrupt cache download (e.g. `gtar: Cannot write: Illegal
+  byte sequence` from a partial zstd stream on macOS) can no longer fail the
+  whole job.
+- Added a `validate` step that checks a cache-restored toolchain actually runs
+  (`zig version`) before using it; an invalid restore falls back to a fresh
+  SHA-verified download, and the cache is re-saved so the next run heals.
+
 ## [1.0.0] - 2026-08-14
 
 ### Added

@@ -58,13 +58,17 @@ jobs:
    manifest of every release and the nightly build) and resolves the requested
    version + the correct archive for the runner (`runner.os` × `runner.arch`).
 2. **Restore** — the toolchain and the Zig global cache directory are restored
-   from GitHub Actions cache (two independent keys).
-3. **Download & verify** — on a cache miss the archive is downloaded (3 retries)
-   and its **SHA-256 is verified against the manifest** before extraction.
-4. **Install** — extracts into `$RUNNER_TOOL_CACHE/setup-zig` and prepends its
+   from GitHub Actions cache (two independent keys). A restore is best-effort:
+   a truncated or corrupt cache download never fails the job.
+3. **Validate** — a cache-restored toolchain is checked with `zig version`
+   before it is trusted.
+4. **Download & verify** — on a cache miss or an invalid restore the archive is
+   downloaded (3 retries) and its **SHA-256 is verified against the manifest**
+   before extraction.
+5. **Install** — extracts into `$RUNNER_TOOL_CACHE/setup-zig` and prepends its
    `bin` directory to `PATH`. The Zig global cache is redirected to the cached
    directory via `ZIG_GLOBAL_CACHE_DIR`.
-5. **Save** — both caches are saved for the next run.
+6. **Save** — both caches are saved for the next run.
 
 ## Cache keys
 

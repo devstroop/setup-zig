@@ -44,13 +44,23 @@ runs:
     - name: Restore toolchain from cache
       id: restore-toolchain
       if: inputs.use-cache == 'true'
+      # A cache restore is a pure optimization: a truncated/corrupt cache
+      # download must never fail the job. The install step below always
+      # re-downloads and verifies the toolchain when the cache is unusable.
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ${{ runner.tool_cache }}/setup-zig
         key: setup-zig-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ steps.resolve.outputs.zig-version }}
 
+    - name: Validate restored toolchain
+      id: validate-toolchain
+      if: steps.restore-toolchain.outputs.cache-hit == 'true'
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/setup-posix.sh" validate
+
     - name: Install Zig (Linux/macOS)
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' && steps.validate-toolchain.outputs.valid != 'true'
       shell: bash
       env:
         DOWNLOAD_URL: ${{ steps.resolve.outputs.url }}
@@ -58,7 +68,7 @@ runs:
       run: bash "${{ github.action_path }}/scripts/setup-posix.sh" install
 
     - name: Install Zig (Windows)
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && steps.validate-toolchain.outputs.valid != 'true'
       shell: pwsh
       env:
         DOWNLOAD_URL: ${{ steps.resolve.outputs.url }}
@@ -66,7 +76,7 @@ runs:
       run: pwsh -NoProfile -NonInteractive -File "${{ github.action_path }}/scripts/setup-windows.ps1"
 
     - name: Save toolchain to cache
-      if: always() && inputs.use-cache == 'true' && steps.restore-toolchain.outputs.cache-hit != 'true'
+      if: always() && inputs.use-cache == 'true' && (steps.restore-toolchain.outputs.cache-hit != 'true' || steps.validate-toolchain.outputs.valid != 'true')
       continue-on-error: true
       uses: actions/cache/save@v6
       with:
@@ -76,6 +86,9 @@ runs:
     - name: Restore Zig global cache
       id: restore-global-cache
       if: inputs.use-cache == 'true'
+      # Same reasoning as the toolchain restore: a cache restore failure must
+      # never fail the job. The cache dir is (re)created by the next step.
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ${{ runner.temp }}/setup-zig-cache
